@@ -14,7 +14,7 @@ sudo su -
 - splat it
 
 ```
-wget http://git.io/vnD1l -O splat.sh
+curl -fsSL http://git.io/vnD1l -o splat.sh
 bash splat.sh
 ```
 
