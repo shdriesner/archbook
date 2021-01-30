@@ -47,9 +47,9 @@ PATH="${PATH}:/usr/local/bin"
 get_pkg() {
   # do nothing if no arguments given
   for pkg in $*; do
-    if [ X`which ${pkg} 2>/dev/null` == X ]; then
+    if [ "X" == "X$(which ${pkg} 2>/dev/null)" ]; then
       # we need to install ${pkg}
-      if [ X`which pacman 2>/dev/null` != X ]; then
+      if [ "X" != "X$(which pacman 2>/dev/null)" ]; then
         # install the Arch way
         cat <<EOF
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -63,7 +63,7 @@ EOF
         pacman -S "${pkg}"
       else
         # install the gentoo/chromeos way
-        if [ X`which emerge 2>/dev/null` == X ]; then
+        if [ "X" == "X$(which emerge 2>/dev/null)" ]; then
           cat <<EOF
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 The tool 'emerge' is missing, so we need to install it
@@ -76,7 +76,7 @@ we should be good to go, but YMMV.
 
 EOF
           # wait for user to say go
-          echo -n "Hit [ENTER] to proceed with running dev_install or Ctrl-C to quit: " && read ans
+          read -p "Hit [ENTER] to proceed with running dev_install or Ctrl-C to quit: " ans
           # execute dev_install
           dev_install
         fi
@@ -94,12 +94,9 @@ EOF
 }
 
 # This is where we check for the user supplied disk path
-if [ X$1 == X ]; then
-  DISK=/dev/sda
-else
-  DISK=$1
-fi
+[ "X" != "X$1" ] && DISK="$1" || DISK="/dev/sda"
 
+#
 # This is where we detect what type of install we are attempting
 #
 if grep -q /dev/sd[a-z]$ <<<"${DISK}" ; then
@@ -143,7 +140,7 @@ set -e
 get_pkg wget parted
 
 # download the ArchLinuxARM tarball and MD5 files
-for f in "${TARBALL}" "${TARBALL}.md5"; do
+for f in "${TARBALL}.md5" "${TARBALL}"; do
   if [ ! -f "${f}" ]; then
     yell "Downloading ${ARCH_URL}/${f} to ${f}"
     wget "${ARCH_URL}/${f}" -O "${f}"
@@ -151,11 +148,11 @@ for f in "${TARBALL}" "${TARBALL}.md5"; do
 done
 
 # verify tarball's integrity
-if [ X`md5sum -c ${TARBALL}.md5 2>/dev/null | awk '{print $NF}'` == X"OK" ]; then
+if md5sum -c "${TARBALL}.md5" 2>&1 >/dev/null; then
   yell "Local copy of ${TARBALL} is OK"
 else
   yell "Local copy of Arch has wrong md5 ... removing file(s) ... run this script again"
-  try rm "${TARBALL}" "${TARBALL}.md5"
+  try rm -vf "${TARBALL}" "${TARBALL}.md5"
   exit 0
 fi
 
@@ -177,7 +174,7 @@ try cgpt add -i 2 -t data -b 40960 -s "${LIMIT}" -l Root "${DISK}"
 yell "Signal re-read of device"
 try sync
 sleep 1
-if [ "usb" == "${TYPE}" ]; then
+if [ "Xusb" == "X${TYPE}" ]; then
   yell "I assume this is the USB stick and I'm inside chromeos"
   try hdparm -z "${DISK}"
 else
@@ -190,21 +187,21 @@ sleep 1
 # set name of disk partition
 DISKP="${DISK}"
 # for eMMC, append 'p' to DISKP
-if [ "mmc" == "${TYPE}" ]; then DISKP="${DISKP}p"; fi
+[ "Xmmc" == "X${TYPE}" ] && DISKP="${DISKP}p"
 
 # format and mount root partition
 try mkfs.ext4 -L root -m 0 "${DISKP}2"
 try mount "${DISKP}2" ${ROOTFS}
 # extract Arch install to root partition
-try tar -xf "${TARBALL}" -C ${ROOTFS}
+try tar -xf "${TARBALL}" -C "${ROOTFS}"
 # write kernel directly to kernel partition
 try dd if="${ROOTFS}/boot/vmlinux.kpart" of="${DISKP}1"
 
 # if there is a working copy of cgpt, we are going to transfer
 # it to the new install.
 for exe in cgpt; do
-  fp=`which ${exe} 2>/dev/null`
-  if [ X"${fp}" != X ]; then
+  fp="$(which ${exe} 2>/dev/null)"
+  if [ "X" != "X${fp}" ]; then
     # we don't care if this fails
     mkdir -p "${ROOTFS}/usr/local/bin"
     # copy the binary
@@ -216,7 +213,7 @@ done
 
 # if this is a USB install, we will go ahead and add the TARBALL, its MD5,
 # and this script to the ${ROOTFS}/root directory to save download time.
-if [ "usb" == "${TYPE}" ]; then
+if [ "Xusb" == "X${TYPE}" ]; then
   for f in "${SPLAT}" "${TARBALL}" "${TARBALL}.md5"; do
     try cp -vf "${f}" "${ROOTFS}/root/."
   done
@@ -224,10 +221,10 @@ fi
 
 # perform sync, and unmount root partition, and remove ROOTFS if empty
 try sync
-try umount ${ROOTFS}
-try rmdir ${ROOTFS}
+try umount "${ROOTFS}"
+try rmdir "${ROOTFS}"
 
-if [ "usb" == "${TYPE}" ]; then
+if [ "Xusb" == "X${TYPE}" ]; then
   cat <<EOF
 Install to ${DISK} finished."
 Reboot and hit Ctrl-U to select boot from ${DISK} at the splash screen.
