@@ -46,10 +46,13 @@ PATH="${PATH}:/usr/local/bin"
 ###
 get_pkg() {
   # do nothing if no arguments given
-  for pkg in $*; do
-    if [ "X" == "X$(which ${pkg} 2>/dev/null)" ]; then
+  for pkg in "$@"
+  do
+    if [ "X" == "X$(which "${pkg}" 2>/dev/null)" ]
+    then
       # we need to install ${pkg}
-      if [ "X" != "X$(which pacman 2>/dev/null)" ]; then
+      if [ "X" != "X$(which pacman 2>/dev/null)" ]
+      then
         # install the Arch way
         cat <<EOF
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -63,7 +66,8 @@ EOF
         pacman -S "${pkg}"
       else
         # install the gentoo/chromeos way
-        if [ "X" == "X$(which emerge 2>/dev/null)" ]; then
+        if [ "X" == "X$(which emerge 2>/dev/null)" ]
+        then
           cat <<EOF
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 The tool 'emerge' is missing, so we need to install it
@@ -76,9 +80,11 @@ we should be good to go, but YMMV.
 
 EOF
           # wait for user to say go
-          read -p "Hit [ENTER] to proceed with running dev_install or Ctrl-C to quit: " ans
+          read -r -p "Hit [ENTER] to proceed with running dev_install or Ctrl-C to quit: " ans
           # execute dev_install
-          dev_install
+          case "${ans}" in
+            *) dev_install;;
+          esac
         fi
         cat <<EOF
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -99,9 +105,11 @@ EOF
 #
 # This is where we detect what type of install we are attempting
 #
-if grep -q /dev/sd[a-z]$ <<<"${DISK}" ; then
+if grep -q '/dev/sd[a-z]$' <<<"${DISK}" 
+then
   TYPE="usb"
-elif grep -q /dev/mmcblk[0-9]$ <<<"${DISK}" ; then
+elif grep -q '/dev/mmcblk[0-9]$' <<<"${DISK}" 
+then
   TYPE="mmc"
 else
   cat <<EOF
@@ -124,14 +132,12 @@ EOF
   die "exiting ..."
 fi
 
-# if [ ! -b "${DISK}" ]; then
-#   die "error.. ${DISK} is not a block device"
-# fi
+# [ ! -b "${DISK}" ] && die "error.. ${DISK} is not a block device"
 
 yell "Installing to [${DISK}] in 5 seconds... ctrl+c to abort"
 sleep 5
 
-for a in ${DISK}* ; do umount $a; done
+for a in "${DISK}"* ; do umount "${a}"; done
 set -e
 
 ###
@@ -140,15 +146,18 @@ set -e
 get_pkg wget parted
 
 # download the ArchLinuxARM tarball and MD5 files
-for f in "${TARBALL}.md5" "${TARBALL}"; do
-  if [ ! -f "${f}" ]; then
+for f in "${TARBALL}.md5" "${TARBALL}"
+do
+  if [ ! -f "${f}" ]
+  then
     yell "Downloading ${ARCH_URL}/${f} to ${f}"
     wget "${ARCH_URL}/${f}" -O "${f}"
   fi
 done
 
 # verify tarball's integrity
-if md5sum -c "${TARBALL}.md5" 2>&1 >/dev/null; then
+if md5sum -c "${TARBALL}.md5" >/dev/null 2>&1
+then
   yell "Local copy of ${TARBALL} is OK"
 else
   yell "Local copy of Arch has wrong md5 ... removing file(s) ... run this script again"
@@ -167,14 +176,15 @@ try cgpt add -i 1 -t kernel -b 8192 -s 32768 -l Kernel -S 1 -T 5 -P 10 "${DISK}"
 #this is used to determine last sector
 SECTOR="$(cgpt show ${DISK} | grep "Sec GPT table" | awk '{print $1}')"
 
-let "LIMIT = ${SECTOR} - 40960"
+LIMIT="$(( SECTOR - 40960 ))"
 # configure the Root partition
 try cgpt add -i 2 -t data -b 40960 -s "${LIMIT}" -l Root "${DISK}"
 
 yell "Signal re-read of device"
 try sync
 sleep 1
-if [ "Xusb" == "X${TYPE}" ]; then
+if [ "Xusb" == "X${TYPE}" ]
+then
   yell "I assume this is the USB stick and I'm inside chromeos"
   try hdparm -z "${DISK}"
 else
@@ -199,22 +209,23 @@ try dd if="${ROOTFS}/boot/vmlinux.kpart" of="${DISKP}1"
 
 # if there is a working copy of cgpt, we are going to transfer
 # it to the new install.
-for exe in cgpt; do
-  fp="$(which ${exe} 2>/dev/null)"
-  if [ "X" != "X${fp}" ]; then
-    # we don't care if this fails
-    mkdir -p "${ROOTFS}/usr/local/bin"
-    # copy the binary
-    try cp -f "${fp}" "${ROOTFS}/usr/local/bin/."
-    # make sure it's executable
-    try chmod +x "${ROOTFS}/usr/local/bin/${exe}"
-  fi
-done
+fp="$(which cgpt 2>/dev/null)"
+if [ "X" != "X${fp}" ]
+then
+  # we don't care if this fails
+  mkdir -p "${ROOTFS}/usr/local/bin"
+  # copy the binary
+  try cp -f "${fp}" "${ROOTFS}/usr/local/bin/."
+  # make sure it's executable
+  try chmod +x "${ROOTFS}/usr/local/bin/cgpt"
+fi
 
 # if this is a USB install, we will go ahead and add the TARBALL, its MD5,
 # and this script to the ${ROOTFS}/root directory to save download time.
-if [ "Xusb" == "X${TYPE}" ]; then
-  for f in "${SPLAT}" "${TARBALL}" "${TARBALL}.md5"; do
+if [ "Xusb" == "X${TYPE}" ]
+then
+  for f in "${SPLAT}" "${TARBALL}" "${TARBALL}.md5"
+  do
     try cp -vf "${f}" "${ROOTFS}/root/."
   done
 fi
@@ -224,7 +235,8 @@ try sync
 try umount "${ROOTFS}"
 try rmdir "${ROOTFS}"
 
-if [ "Xusb" == "X${TYPE}" ]; then
+if [ "Xusb" == "X${TYPE}" ]
+then
   cat <<EOF
 Install to ${DISK} finished."
 Reboot and hit Ctrl-U to select boot from ${DISK} at the splash screen.
